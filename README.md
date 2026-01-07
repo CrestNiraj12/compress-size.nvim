@@ -97,8 +97,12 @@ vim.o.statusline = table.concat({
 
 ```lua
 {
+  enabled = true,
+  show = { raw = true, gzip = true, brotli = true },
   delay_ms = 200,
+  brotli_quality = 11,
   max_file_size_kb = 1024,
+  separator = "|",
   enabled_filetypes = {
     javascript = true,
     javascriptreact = true,
@@ -120,7 +124,7 @@ Debounce delay for recalculating sizes on `TextChanged`/`TextChangedI`.
 ### `max_file_size_kb`
 
 If the raw buffer size exceeds this threshold, the plugin still shows `raw` but
-marks it as too large and skips meaningful gzip computation output.
+marks it as too large and skips gzip/brotli computation.
 
 ### `enabled_filetypes`
 
@@ -132,6 +136,7 @@ processed.
 - Refreshes on `BufEnter` and `BufWritePost`
 - Debounced refresh on `TextChanged` and `TextChangedI`
 - Uses `gzip -c` to compute compressed output size asynchronously
+- Uses `brotli -c` to compute brotli output size asynchronously
 - Throttles statusline redraw to reduce flicker
 
 ## License

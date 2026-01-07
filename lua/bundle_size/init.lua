@@ -212,6 +212,9 @@ function M.setup(opts)
   vim.api.nvim_create_user_command("BundleSizeToggle", function()
     M.opts.enabled = (M.opts.enabled ~= false) and false or true
     if not M.opts.enabled then
+      M.cache.raw = nil
+      M.cache.gzip = nil
+      M.cache.brotli = nil
       M.cache.result = ""
       request_redraw()
     else
