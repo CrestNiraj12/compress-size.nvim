@@ -1,3 +1,6 @@
+# 🚧 Beta Phase Warning
+
+This plugin is currently in beta. Stability and API may change as it evolves.
 # bundle_size.nvim
 
 Display the current buffer size (raw, gzip, brotli) in your statusline.

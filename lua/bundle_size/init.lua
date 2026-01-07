@@ -25,6 +25,7 @@ M.cache = {
   by_buf = {},
 }
 
+M._gen = 0
 M._timer = nil
 M._redraw_timer = nil
 
@@ -98,6 +99,8 @@ local function request_redraw()
 end
 
 function M.refresh()
+  local gen = M._gen
+
   if vim.in_fast_event() then
     vim.schedule(M.refresh)
     return
@@ -153,6 +156,9 @@ function M.refresh()
   if M.opts.show.gzip then
     compute.gzip_size(text, function(gz)
       vim.schedule(function()
+        if M._gen ~= gen then return end
+        if M.opts.enabled == false then return end
+
         if not vim.api.nvim_buf_is_valid(buf) then return end
         if buf ~= vim.api.nvim_get_current_buf() then return end
         if tick ~= vim.b[buf].changedtick then return end
@@ -171,6 +177,9 @@ function M.refresh()
   if M.opts.show.brotli then
     compute.brotli_size(text, function(br)
       vim.schedule(function()
+        if M._gen ~= gen then return end
+        if M.opts.enabled == false then return end
+
         if not vim.api.nvim_buf_is_valid(buf) then return end
         if buf ~= vim.api.nvim_get_current_buf() then return end
         if tick ~= vim.b[buf].changedtick then return end
@@ -228,6 +237,7 @@ function M.setup(opts)
   end, {})
 
   vim.api.nvim_create_user_command("BundleSizeToggle", function()
+    M._gen = M._gen + 1
     M.opts.enabled = (M.opts.enabled ~= false) and false or true
 
     local buf = vim.api.nvim_get_current_buf()
