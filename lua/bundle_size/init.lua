@@ -81,7 +81,12 @@ function M.refresh()
 
   local buf = vim.api.nvim_get_current_buf()
   if not is_enabled_buffer(buf) then
-    M.cache.result = ""
+    M.cache.raw = nil
+    M.cache.gzip = nil
+    if M.cache.result ~= "" then
+      M.cache.result = ""
+      request_redraw()
+    end
     return
   end
 
