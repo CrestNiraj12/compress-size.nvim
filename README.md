@@ -1,24 +1,20 @@
-# 🚧 Beta Phase Warning
+# bundle-size.nvim
 
-This plugin is currently in beta. Stability and API may change as it evolves.
-# bundle_size.nvim
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Neovim Version](https://img.shields.io/badge/Neovim-0.10+-blue.svg)](https://neovim.io/)
 
-Display the current buffer size (raw, gzip, brotli) in your statusline.
+A Neovim plugin to display the current buffer size (raw, gzip, brotli) in your statusline.
 
-This plugin computes:
-
-- **raw**: byte length of the current buffer text
-- **gz**: gzip-compressed byte length (requires `gzip` on your `$PATH`)
-- **br**: brotli-compressed byte length (requires `brotli` on your `$PATH`)
-
-The value is exposed via `require("bundle_size").status()` so you can show it in
-lualine, heirline, a custom statusline, etc.
+This plugin computes and displays:
+- **raw**: Byte length of the current buffer text
+- **gz**: Gzip-compressed byte length (requires `gzip` on PATH)
+- **br**: Brotli-compressed byte length (requires `brotli` on PATH)
 
 ## Requirements
 
-- Neovim **0.10+** (uses `vim.system` and `vim.uv`)
-- Optional: `gzip` executable for gzip size (if missing, `gz ?` is shown)
-- Optional: `brotli` executable for brotli size (if missing, `br ?` is shown)
+- **Neovim 0.10+** (uses `vim.system` and `vim.uv`)
+- Optional: `gzip` executable for gzip compression size
+- Optional: `brotli` executable for brotli compression size
 
 ## Installation
 
@@ -26,7 +22,7 @@ lualine, heirline, a custom statusline, etc.
 
 ```lua
 {
-  "niraj-shrestha/bundle_size.nvim",
+  "CrestNiraj12/bundle-size.nvim",
   opts = {
     -- your config here (see Options)
   },
@@ -37,35 +33,25 @@ lualine, heirline, a custom statusline, etc.
 
 ```lua
 use({
-  "niraj-shrestha/bundle_size.nvim",
+  "CrestNiraj12/bundle-size.nvim",
   config = function()
     require("bundle_size").setup()
   end,
 })
 ```
 
-## Pros
-
-- **Instant feedback**: see raw/gzip/brotli sizes as you edit.
-- **Statusline-friendly**: a single `status()` function works with any
-  statusline plugin.
-- **Low overhead**: debounced updates + throttled redraw to reduce flicker.
-- **Safe on large files**: skips compression work past a size threshold.
-- **Async compression**: uses `vim.system()` to avoid blocking the UI.
-- **Configurable**: toggle metrics, separator, filetypes, and brotli quality.
-
 ## Usage
 
-1. Call `setup()` once.
+1. Call `require("bundle_size").setup()` in your init.lua.
 2. Add the status function to your statusline.
 
-### Minimal setup
+### Minimal Setup
 
 ```lua
 require("bundle_size").setup()
 ```
 
-### Add to statusline
+### Integrate with Statusline
 
 #### lualine
 
@@ -82,7 +68,7 @@ require("lualine").setup({
 })
 ```
 
-#### vim.o.statusline
+#### Custom Statusline
 
 ```lua
 require("bundle_size").setup()
@@ -96,7 +82,7 @@ vim.o.statusline = table.concat({
 
 ## Options
 
-`setup()` accepts an options table. Defaults:
+Pass options to `setup()`. Defaults:
 
 ```lua
 {
@@ -120,27 +106,29 @@ vim.o.statusline = table.concat({
 }
 ```
 
-### `delay_ms`
+### Option Details
 
-Debounce delay for recalculating sizes on `TextChanged`/`TextChangedI`.
+- `enabled` (boolean): Enable/disable the plugin.
+- `show` (table): Which sizes to display (raw, gzip, brotli).
+- `delay_ms` (number): Debounce delay for updates on text changes.
+- `brotli_quality` (number): Compression quality for brotli (1-11).
+- `max_file_size_kb` (number): Max buffer size in KB before skipping compression.
+- `separator` (string): Separator between metrics in statusline.
+- `enabled_filetypes` (table): Map of filetype -> boolean for which files to process.
 
-### `max_file_size_kb`
+## Commands
 
-If the raw buffer size exceeds this threshold, the plugin still shows `raw` but
-marks it as too large and skips gzip/brotli computation.
+- `:BundleSizeRefresh` — Force recompute sizes and show "Refreshing…" indicator.
+- `:BundleSizeToggle` — Toggle the plugin on/off. When off, statusline shows nothing.
 
-### `enabled_filetypes`
+## How It Works
 
-A map of filetype -> boolean. If non-empty, only filetypes set to `true` are
-processed.
-
-## How it works
-
-- Refreshes on `BufEnter` and `BufWritePost`
-- Debounced refresh on `TextChanged` and `TextChangedI`
-- Uses `gzip -c` to compute compressed output size asynchronously
-- Uses `brotli -c` to compute brotli output size asynchronously
-- Throttles statusline redraw to reduce flicker
+- Refreshes on `BufEnter` and `BufWritePost`.
+- Debounced updates on `TextChanged` and `TextChangedI`.
+- Asynchronous compression using `vim.system()` to avoid blocking.
+- Skips compression for files larger than `max_file_size_kb`.
+- Throttled statusline redraws to minimize flicker.
+- Buffer text reading is synchronous but kept lightweight.
 
 ## License
 
