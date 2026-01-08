@@ -1,5 +1,10 @@
 local M = {}
+
+local buf = require("bundle_size.buf")
 local compute = require("bundle_size.compute")
+local redraw = require("bundle_size.redraw")
+local render = require("bundle_size.render")
+local state = require("bundle_size.state")
 
 M.opts = {
   enabled = true,
@@ -27,92 +32,23 @@ M.cache = {
 
 M._gen = 0
 M._timer = nil
-M._redraw_timer = nil
+M._redraw = setmetatable({}, { __index = redraw })
 
-local function buf_state(buf)
-  local s = M.cache.by_buf[buf]
-  if not s then
-    s = {
-      raw = nil,
-      gzip = nil,
-      brotli = nil,
-      result = "",
-      tick = nil,
-      loading = false,
-    }
-    M.cache.by_buf[buf] = s
-  end
-  return s
+local function buf_state(b)
+  return state.get(M.cache, b)
 end
 
-local function clear_buf_state(buf)
-  M.cache.by_buf[buf] = nil
+local function clear_buf_state(b)
+  state.clear(M.cache, b)
 end
 
-local function format_bytes(n)
-  local byte_size = 1024
-  if n < byte_size then return tostring(n) .. "b" end
-  if n < byte_size * byte_size then return string.format("%.1fK", n / byte_size) end
-  return string.format("%.2fM", n / (byte_size * byte_size))
-end
-
-local function get_buf_text(buf)
-  local lines = vim.api.nvim_buf_get_lines(buf or 0, 0, -1, false)
-  return table.concat(lines, "\n")
-end
-
-local function is_enabled_buffer(buf)
-  buf = buf or 0
-  if vim.bo[buf].buftype ~= "" then return false end
-  if vim.bo[buf].modifiable == false then return false end
-
-  local ft = vim.bo[buf].filetype
-  local allow = M.opts.enabled_filetypes
-  if allow and next(allow) ~= nil then
-    return allow[ft] == true
-  end
-
-  return true
-end
 
 local function build_result(s)
-  local parts = {}
-
-  if M.opts.show.raw then
-    table.insert(parts, "raw " .. (s.raw and format_bytes(s.raw) or "?"))
-  end
-  if M.opts.show.gzip then
-    table.insert(parts, "gz " .. (s.gzip and format_bytes(s.gzip) or "?"))
-  end
-  if M.opts.show.brotli then
-    table.insert(parts, "br " .. (s.brotli and format_bytes(s.brotli) or "?"))
-  end
-
-  -- Show the last known values, but append a subtle loading indicator
-  -- while async compression sizes are being recomputed.
-  local result = table.concat(parts, " " .. M.opts.separator .. " ")
-  if s.loading then
-    if result == "" then
-      return "BundleSize: Refreshing…"
-    end
-    return result .. " " .. M.opts.separator .. " Refreshing…"
-  end
-
-  return result
+  return render.build_result({ show = M.opts.show, separator = M.opts.separator }, s)
 end
 
 local function request_redraw()
-  if M._redraw_timer then return end
-
-  M._redraw_timer = vim.uv.new_timer()
-  M._redraw_timer:start(50, 0, function()
-    M._redraw_timer:stop()
-    M._redraw_timer:close()
-    M._redraw_timer = nil
-    vim.schedule(function()
-      vim.cmd("redrawstatus")
-    end)
-  end)
+  M._redraw:request()
 end
 
 function M.refresh()
@@ -123,10 +59,10 @@ function M.refresh()
     return
   end
 
-  local buf = vim.api.nvim_get_current_buf()
+  local cur_buf = vim.api.nvim_get_current_buf()
 
   if M.opts.enabled == false then
-    local s = buf_state(buf)
+    local s = buf_state(cur_buf)
     if s.result ~= "" then
       s.result = ""
       s.tick = nil
@@ -135,13 +71,13 @@ function M.refresh()
     return
   end
 
-  if not is_enabled_buffer(buf) then
-    clear_buf_state(buf)
+  if not buf.is_enabled_buffer(M.opts, cur_buf) then
+    clear_buf_state(cur_buf)
     return
   end
 
-  local s = buf_state(buf)
-  local tick = vim.b[buf].changedtick
+  local s = buf_state(cur_buf)
+  local tick = vim.b[cur_buf].changedtick
 
   -- If the buffer hasn't changed and we're not currently waiting on any sizes,
   -- keep the existing (already computed) display.
@@ -151,7 +87,7 @@ function M.refresh()
 
   s.tick = tick
 
-  local text = get_buf_text(buf)
+  local text = buf.get_text(cur_buf)
   local raw = #text
 
   if raw > (M.opts.max_file_size_kb * 1024) then
@@ -197,17 +133,19 @@ function M.refresh()
     end
   end
 
+  local target_buf = cur_buf
+
   if M.opts.show.gzip then
     compute.gzip_size(text, function(gz)
       vim.schedule(function()
         if M._gen ~= gen then return end
         if M.opts.enabled == false then return end
 
-        if not vim.api.nvim_buf_is_valid(buf) then return end
-        if buf ~= vim.api.nvim_get_current_buf() then return end
-        if tick ~= vim.b[buf].changedtick then return end
+        if not vim.api.nvim_buf_is_valid(target_buf) then return end
+        if target_buf ~= vim.api.nvim_get_current_buf() then return end
+        if tick ~= vim.b[target_buf].changedtick then return end
 
-        local st = buf_state(buf)
+        local st = buf_state(target_buf)
         st.gzip = gz
         done_one(st)
       end)
@@ -220,11 +158,11 @@ function M.refresh()
         if M._gen ~= gen then return end
         if M.opts.enabled == false then return end
 
-        if not vim.api.nvim_buf_is_valid(buf) then return end
-        if buf ~= vim.api.nvim_get_current_buf() then return end
-        if tick ~= vim.b[buf].changedtick then return end
+        if not vim.api.nvim_buf_is_valid(target_buf) then return end
+        if target_buf ~= vim.api.nvim_get_current_buf() then return end
+        if tick ~= vim.b[target_buf].changedtick then return end
 
-        local st = buf_state(buf)
+        local st = buf_state(target_buf)
         st.brotli = br
         done_one(st)
       end)
@@ -269,8 +207,8 @@ function M.setup(opts)
   })
 
   vim.api.nvim_create_user_command("BundleSizeRefresh", function()
-    local buf = vim.api.nvim_get_current_buf()
-    local s = buf_state(buf)
+    local cur_buf = vim.api.nvim_get_current_buf()
+    local s = buf_state(cur_buf)
 
     -- Force a refresh even if unchangedtick didn't change.
     s.tick = nil
@@ -312,8 +250,8 @@ function M.setup(opts)
     -- Enable
     M.opts.enabled = true
 
-    local buf = vim.api.nvim_get_current_buf()
-    local s = buf_state(buf)
+    local cur_buf = vim.api.nvim_get_current_buf()
+    local s = buf_state(cur_buf)
 
     -- Force a refresh even if unchangedtick didn't change.
     s.tick = nil
@@ -337,8 +275,8 @@ function M.setup(opts)
 end
 
 function M.status()
-  local buf = vim.api.nvim_get_current_buf()
-  local s = M.cache.by_buf[buf]
+  local cur_buf = vim.api.nvim_get_current_buf()
+  local s = M.cache.by_buf[cur_buf]
   return (s and s.result) or ""
 end
 
