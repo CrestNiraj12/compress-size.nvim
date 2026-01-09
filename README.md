@@ -121,6 +121,14 @@ Pass options to `setup()`. Defaults:
 - `:BundleSizeRefresh` — Force recompute sizes and show "Refreshing…" indicator.
 - `:BundleSizeToggle` — Toggle the plugin on/off. When off, statusline shows nothing.
 
+### Silent Toggle
+
+To disable notifications when toggling the plugin, set:
+
+```lua
+vim.g.compress_size_silent_toggle = true
+```
+
 ## How It Works
 
 - Refreshes on `BufEnter` and `BufWritePost`.
